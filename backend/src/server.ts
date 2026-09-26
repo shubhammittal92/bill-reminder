@@ -44,9 +44,11 @@ export async function scanAndNotify(): Promise<void> {
 async function main(): Promise<void> {
   await initDb();
   const app = createApp();
-  app.listen(PORT, () => {
+  // Bind 0.0.0.0 so hosted platforms (Render, etc.) can route to the service;
+  // binding the default loopback would make the platform health check fail.
+  app.listen(PORT, '0.0.0.0', () => {
     // eslint-disable-next-line no-console
-    console.log(`bill-reminder API listening on http://localhost:${PORT}`);
+    console.log(`bill-reminder API listening on port ${PORT}`);
   });
 
   await scanAndNotify();
