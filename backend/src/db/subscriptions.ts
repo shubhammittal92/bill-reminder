@@ -52,8 +52,30 @@ export async function getById(userId: number, id: number): Promise<Subscription 
 }
 
 export async function create(userId: number, sub: Omit<Subscription, 'id'>): Promise<Subscription> {
-  const [id] = await db('subscriptions').insert({ ...sub, userId });
+  // Postgres needs .returning('id') to get the new id; SQLite returns [id]
+  // directly. Fall back to a lookup on the latest row if neither yields one.
+  const inserted = await db('subscriptions').insert({ ...sub, userId }).returning('id');
+  let id = extractId(inserted);
+  if (id === undefined) {
+    const row = await db('subscriptions')
+      .where({ userId })
+      .orderBy('id', 'desc')
+      .first();
+    id = row?.id;
+  }
+  if (id === undefined) throw new Error('failed to create subscription');
   return (await getById(userId, id))!;
+}
+
+/** Normalize Knex insert-return shapes: [id], [{ id }], or []. */
+function extractId(inserted: unknown): number | undefined {
+  if (!Array.isArray(inserted) || inserted.length === 0) return undefined;
+  const first = inserted[0];
+  if (typeof first === 'number') return first;
+  if (first && typeof first === 'object' && 'id' in first) {
+    return (first as { id: number }).id;
+  }
+  return undefined;
 }
 
 export async function update(

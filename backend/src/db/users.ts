@@ -27,6 +27,29 @@ export async function createUser(email: string, password: string): Promise<User>
   const existing = await findByEmail(email);
   if (existing) throw new AuthError('an account with this email already exists');
   const passwordHash = hashPassword(password);
-  const [id] = await db('users').insert({ email: email.toLowerCase(), passwordHash });
+  // Postgres does NOT return the inserted id from a plain .insert() (it returns
+  // an empty array); it needs .returning('id'). SQLite returns [id] directly and
+  // ignores .returning(). Handle both: prefer the returned row, fall back to a
+  // lookup so the id is always populated.
+  const inserted = await db('users')
+    .insert({ email: email.toLowerCase(), passwordHash })
+    .returning('id');
+  let id = extractId(inserted);
+  if (id === undefined) {
+    const row = await findByEmail(email);
+    id = row?.id;
+  }
+  if (id === undefined) throw new Error('failed to create user');
   return { id, email: email.toLowerCase(), passwordHash };
+}
+
+/** Normalize Knex insert-return shapes: [id], [{ id }], or []. */
+function extractId(inserted: unknown): number | undefined {
+  if (!Array.isArray(inserted) || inserted.length === 0) return undefined;
+  const first = inserted[0];
+  if (typeof first === 'number') return first;
+  if (first && typeof first === 'object' && 'id' in first) {
+    return (first as { id: number }).id;
+  }
+  return undefined;
 }
