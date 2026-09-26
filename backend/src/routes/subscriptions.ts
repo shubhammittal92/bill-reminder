@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import * as repo from '../db/subscriptions';
 import { ValidationError } from '../db/subscriptions';
 import { dueReminders, daysUntilRenewal, nextRenewalDate } from '../services/reminder';
+import { buildDigest } from '../services/digest';
+import { sendDigestEmail } from '../services/email';
 
 export const router = Router();
 
@@ -61,4 +63,21 @@ router.get('/summary', async (_req: Request, res: Response) => {
     activeCount: subs.length,
     estimatedMonthlySpend: Math.round(monthlyTotal * 100) / 100,
   });
+});
+
+/** Preview the consolidated reminder digest (what the email would contain). */
+router.get('/digest', async (_req: Request, res: Response) => {
+  const subs = await repo.listAll();
+  const due = dueReminders(subs);
+  const digest = buildDigest(due, subs.filter((s) => s.active));
+  res.json(digest);
+});
+
+/** Manually trigger the digest email now (useful for testing/demo). */
+router.post('/digest/send', async (_req: Request, res: Response) => {
+  const subs = await repo.listAll();
+  const due = dueReminders(subs);
+  const digest = buildDigest(due, subs.filter((s) => s.active));
+  const result = await sendDigestEmail(digest);
+  res.json({ digest, result });
 });
