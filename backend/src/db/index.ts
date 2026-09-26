@@ -1,13 +1,32 @@
 import knexFactory, { Knex } from 'knex';
 import path from 'path';
 
+/**
+ * Database connection. Uses Postgres when DATABASE_URL is set (production /
+ * hosted, e.g. Render), and falls back to a local SQLite file for development
+ * so the app runs with zero setup. Both are driven through Knex, so the query
+ * code is identical for either backend.
+ */
+const databaseUrl = process.env.DATABASE_URL;
 const dbFile = process.env.DB_FILE || path.join(__dirname, '..', '..', 'data.sqlite');
 
-export const db: Knex = knexFactory({
-  client: 'sqlite3',
-  connection: { filename: dbFile },
-  useNullAsDefault: true,
-});
+export const isPostgres = Boolean(databaseUrl);
+
+export const db: Knex = databaseUrl
+  ? knexFactory({
+      client: 'pg',
+      connection: {
+        connectionString: databaseUrl,
+        // Hosted Postgres (Render/Heroku) requires SSL.
+        ssl: { rejectUnauthorized: false },
+      },
+      pool: { min: 0, max: 5 },
+    })
+  : knexFactory({
+      client: 'sqlite3',
+      connection: { filename: dbFile },
+      useNullAsDefault: true,
+    });
 
 /** Create tables if they do not exist. */
 export async function initDb(): Promise<void> {

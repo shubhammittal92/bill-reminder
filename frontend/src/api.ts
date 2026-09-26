@@ -30,7 +30,10 @@ export interface AuthUser {
   email: string;
 }
 
-const base = '/api';
+// In production, VITE_API_URL points at the deployed backend (e.g.
+// https://bill-reminder-api.onrender.com/api). In local dev it is unset, so we
+// use the relative /api path which Vite proxies to the local backend.
+const base = (import.meta.env.VITE_API_URL as string | undefined) || '/api';
 const TOKEN_KEY = 'bill-reminder-token';
 
 export function getToken(): string | null {
