@@ -51,8 +51,18 @@ async function main(): Promise<void> {
     console.log(`bill-reminder API listening on port ${PORT}`);
   });
 
-  await scanAndNotify();
-  setInterval(scanAndNotify, 24 * 60 * 60 * 1000);
+  // The reminder scan is a background job. It must NEVER take the web server
+  // down: a scan failure (transient DB error, email backend hiccup) should be
+  // logged and retried on the next tick, not crash the process. So we do NOT
+  // await it here, and we swallow its rejection.
+  const runScan = (): void => {
+    scanAndNotify().catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[reminder-scan] failed (non-fatal):', err);
+    });
+  };
+  runScan();
+  setInterval(runScan, 24 * 60 * 60 * 1000);
 }
 
 main().catch((err) => {
