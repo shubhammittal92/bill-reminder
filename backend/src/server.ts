@@ -1,3 +1,6 @@
+import { loadEnv } from './config/env';
+loadEnv();
+
 import { createApp } from './app';
 import { initDb } from './db';
 import * as repo from './db/subscriptions';
@@ -8,25 +11,34 @@ import { sendDigestEmail } from './services/email';
 const PORT = Number(process.env.PORT || 4000);
 
 /**
- * Daily reminder scan: builds ONE consolidated digest across all due
- * subscriptions (with spend totals) and emails it. Falls back to logging if
- * email is not configured. This is the app's core value — a single digest,
- * not a per-platform ping.
+ * Daily reminder scan. Groups all active subscriptions by user, builds ONE
+ * consolidated digest per user (with spend totals), and emails it to that
+ * user. Falls back to logging when email is unconfigured.
  */
 export async function scanAndNotify(): Promise<void> {
-  const subs = await repo.listAll();
-  const due = dueReminders(subs);
-  const activeSubs = subs.filter((s) => s.active);
-  const digest = buildDigest(due, activeSubs);
-
-  if (due.length === 0) {
+  const rows = await repo.listAllActiveWithUser();
+  if (rows.length === 0) {
     // eslint-disable-next-line no-console
-    console.log('[reminder-scan] nothing due');
+    console.log('[reminder-scan] no active subscriptions');
     return;
   }
-  // eslint-disable-next-line no-console
-  console.log(`[reminder-scan] ${digest.subject}`);
-  await sendDigestEmail(digest);
+
+  // Group by user.
+  const byUser = new Map<number, { email: string; subs: typeof rows }>();
+  for (const row of rows) {
+    const entry = byUser.get(row.userId) || { email: row.userEmail, subs: [] as typeof rows };
+    entry.subs.push(row);
+    byUser.set(row.userId, entry);
+  }
+
+  for (const { email, subs } of byUser.values()) {
+    const due = dueReminders(subs);
+    if (due.length === 0) continue;
+    const digest = buildDigest(due, subs);
+    // eslint-disable-next-line no-console
+    console.log(`[reminder-scan] ${email}: ${digest.subject}`);
+    await sendDigestEmail(digest, email);
+  }
 }
 
 async function main(): Promise<void> {
