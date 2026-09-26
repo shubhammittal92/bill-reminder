@@ -14,10 +14,50 @@ window.
   whole billing cycles to the next future date.
 - A dashboard that highlights subscriptions **due soon** and shows an estimated
   **monthly spend** normalized across cycles.
-- A daily reminder **scan** on the backend (logs due reminders; the natural hook
-  for email/push).
+- A daily reminder **scan** on the backend that builds ONE consolidated
+  digest across all subscriptions and emails it (see "The digest" below).
 - REST API with input validation and a centralized error handler.
 - Unit tests for the date/reminder engine and integration tests for the API.
+
+## The digest — why this isn't "just another reminder"
+
+Every platform already emails you 2-3 days before it charges. So a per-service
+"Netflix renews in 3 days" ping is not the value here. This app's differentiator
+is a **single consolidated digest**:
+
+- **One place for everything.** Netflix, rent, insurance, a domain, a gym — all
+  in one email, including the ones no platform reminds you about at all.
+- **Spend awareness.** It shows the **total** about to be charged this window and
+  your **estimated monthly subscription spend** — turning a date reminder into a
+  spend-control tool.
+
+Example digest:
+
+```
+Subject: 3 renewals coming up — ₹19,849 due soon
+
+Upcoming renewals:
+  • Rent — ₹18,000 (in 1d, 2026-09-27)
+  • Netflix — ₹649 (in 2d, 2026-09-28)
+  • Domain — ₹1,200 (in 4d, 2026-09-30)
+
+Total due soon:            ₹19,849
+Estimated monthly spend:   ₹18,749
+```
+
+### Email configuration (AWS SES)
+
+Delivery uses AWS SES. Set these environment variables to send real email:
+
+```bash
+export SES_FROM="verified-sender@yourdomain.com"   # a verified SES identity
+export REMINDER_TO="you@example.com"
+export AWS_REGION="us-east-1"                        # your SES region
+```
+
+If they are not set, the digest is **logged to the console** instead of sent —
+so the app runs out of the box for anyone cloning it, with no AWS account
+required. Trigger a digest on demand with `POST /api/digest/send`.
 
 ## Tech stack
 
@@ -26,6 +66,7 @@ window.
 | Frontend  | React 18, TypeScript, Vite                       |
 | Backend   | Node, TypeScript, Express, Knex                  |
 | Database  | SQLite (Postgres-compatible via Knex)            |
+| Email     | AWS SES (falls back to console logging)          |
 | Tests     | Jest, ts-jest, Supertest                         |
 
 ## Architecture
@@ -79,6 +120,8 @@ Open http://localhost:5173.
 | DELETE | `/api/subscriptions/:id` | Delete                                        |
 | GET    | `/api/reminders`         | Subscriptions with a reminder due now         |
 | GET    | `/api/summary`           | Active count + estimated monthly spend        |
+| GET    | `/api/digest`            | Preview the consolidated digest (JSON)        |
+| POST   | `/api/digest/send`       | Build the digest and email it now             |
 
 ### Example
 
