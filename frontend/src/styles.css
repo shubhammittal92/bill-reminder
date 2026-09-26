@@ -117,3 +117,71 @@ h1 { margin-bottom: 4px; }
 }
 
 .empty { color: var(--muted); text-align: center; padding: 24px; }
+
+/* --- Auth screen --- */
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.auth-card {
+  background: var(--card);
+  padding: 32px;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 380px;
+}
+.auth-card h1 { font-size: 22px; margin-bottom: 4px; }
+.auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.auth-form input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.auth-form button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.auth-form button:disabled { opacity: 0.6; cursor: default; }
+.switch { color: var(--muted); font-size: 14px; margin-top: 16px; text-align: center; }
+.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+/* --- Topbar / account --- */
+.topbar { display: flex; justify-content: space-between; align-items: flex-start; }
+.account { display: flex; align-items: center; gap: 12px; }
+.who { color: var(--muted); font-size: 14px; }
+
+/* --- Notice + digest button --- */
+.notice {
+  background: #dcfce7;
+  color: #166534;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.digest-btn {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}

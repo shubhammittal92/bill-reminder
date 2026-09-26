@@ -8,6 +8,8 @@ window.
 
 ## Features
 
+- **Multi-user accounts.** Sign up / log in with email + password; each user
+  sees and manages only their own subscriptions.
 - Add subscriptions with amount, billing cycle (weekly / monthly / quarterly /
   yearly), start date, and a per-item "remind me N days before" window.
 - Automatic **next-renewal** computation that rolls the start date forward by
@@ -65,6 +67,7 @@ required. Trigger a digest on demand with `POST /api/digest/send`.
 |-----------|--------------------------------------------------|
 | Frontend  | React 18, TypeScript, Vite                       |
 | Backend   | Node, TypeScript, Express, Knex                  |
+| Auth      | scrypt password hashing + HMAC signed tokens (crypto) |
 | Database  | SQLite (Postgres-compatible via Knex)            |
 | Email     | AWS SES (falls back to console logging)          |
 | Tests     | Jest, ts-jest, Supertest                         |
@@ -109,24 +112,48 @@ npm run dev     # start UI on http://localhost:5173 (proxies /api to :4000)
 
 Open http://localhost:5173.
 
+## Authentication & multi-user
+
+Every subscription belongs to a user. Auth is built on Node's `crypto` (no
+third-party auth dependency):
+
+- Passwords are hashed with **scrypt + a per-password random salt** and verified
+  in constant time.
+- Sessions use a compact **HMAC-SHA256 signed token** (JWT-style). The signing
+  key comes from `JWT_SECRET` (set it in production; a dev default is used with a
+  warning if unset).
+- All `/api/subscriptions*` routes require a `Authorization: Bearer <token>`
+  header and are scoped to the caller's `userId`, so **one user can never read or
+  modify another's data** (covered by an isolation test).
+
 ## API
 
-| Method | Path                     | Description                                   |
-|--------|--------------------------|-----------------------------------------------|
-| GET    | `/health`                | Health check                                  |
-| GET    | `/api/subscriptions`     | List all (annotated with nextRenewal/daysUntil)|
-| POST   | `/api/subscriptions`     | Create (validated)                            |
-| PUT    | `/api/subscriptions/:id` | Update                                        |
-| DELETE | `/api/subscriptions/:id` | Delete                                        |
-| GET    | `/api/reminders`         | Subscriptions with a reminder due now         |
-| GET    | `/api/summary`           | Active count + estimated monthly spend        |
-| GET    | `/api/digest`            | Preview the consolidated digest (JSON)        |
-| POST   | `/api/digest/send`       | Build the digest and email it now             |
+| Method | Path                     | Auth | Description                                   |
+|--------|--------------------------|------|-----------------------------------------------|
+| GET    | `/health`                | no   | Health check                                  |
+| POST   | `/api/auth/signup`       | no   | Create an account, returns a token            |
+| POST   | `/api/auth/login`        | no   | Log in, returns a token                       |
+| GET    | `/api/auth/me`           | yes  | Current user                                  |
+| GET    | `/api/subscriptions`     | yes  | List the caller's subscriptions               |
+| POST   | `/api/subscriptions`     | yes  | Create (validated)                            |
+| PUT    | `/api/subscriptions/:id` | yes  | Update                                        |
+| DELETE | `/api/subscriptions/:id` | yes  | Delete                                        |
+| GET    | `/api/reminders`         | yes  | Subscriptions with a reminder due now         |
+| GET    | `/api/summary`           | yes  | Active count + estimated monthly spend        |
+| GET    | `/api/digest`            | yes  | Preview the consolidated digest (JSON)        |
+| POST   | `/api/digest/send`       | yes  | Build the digest and email it to the caller   |
 
 ### Example
 
 ```bash
+# 1. Sign up (returns a token)
+TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/signup \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"password123"}' | jq -r .token)
+
+# 2. Add a subscription (authenticated)
 curl -X POST http://localhost:4000/api/subscriptions \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Netflix","amount":649,"cycle":"monthly","startDate":"2026-01-15","reminderDays":3}'
 ```

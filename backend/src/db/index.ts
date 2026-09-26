@@ -9,12 +9,23 @@ export const db: Knex = knexFactory({
   useNullAsDefault: true,
 });
 
-/** Create the subscriptions table if it does not exist. */
+/** Create tables if they do not exist. */
 export async function initDb(): Promise<void> {
-  const exists = await db.schema.hasTable('subscriptions');
-  if (!exists) {
+  const hasUsers = await db.schema.hasTable('users');
+  if (!hasUsers) {
+    await db.schema.createTable('users', (t) => {
+      t.increments('id').primary();
+      t.string('email').notNullable().unique();
+      t.string('passwordHash').notNullable();
+      t.timestamp('createdAt').defaultTo(db.fn.now());
+    });
+  }
+
+  const hasSubs = await db.schema.hasTable('subscriptions');
+  if (!hasSubs) {
     await db.schema.createTable('subscriptions', (t) => {
       t.increments('id').primary();
+      t.integer('userId').notNullable().references('id').inTable('users').onDelete('CASCADE');
       t.string('name').notNullable();
       t.float('amount').notNullable().defaultTo(0);
       t.string('currency').notNullable().defaultTo('INR');
@@ -23,6 +34,15 @@ export async function initDb(): Promise<void> {
       t.integer('reminderDays').notNullable().defaultTo(3);
       t.boolean('active').notNullable().defaultTo(true);
       t.timestamp('createdAt').defaultTo(db.fn.now());
+      t.index(['userId']);
     });
+  } else {
+    // Migrate an existing single-user table: add userId if missing.
+    const hasUserId = await db.schema.hasColumn('subscriptions', 'userId');
+    if (!hasUserId) {
+      await db.schema.alterTable('subscriptions', (t) => {
+        t.integer('userId').references('id').inTable('users').onDelete('CASCADE');
+      });
+    }
   }
 }

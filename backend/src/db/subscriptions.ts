@@ -41,30 +41,43 @@ export function validate(body: Partial<Subscription>): Omit<Subscription, 'id'> 
   };
 }
 
-export async function listAll(): Promise<Subscription[]> {
-  const rows = await db('subscriptions').select('*').orderBy('createdAt', 'desc');
+export async function listAll(userId: number): Promise<Subscription[]> {
+  const rows = await db('subscriptions').where({ userId }).select('*').orderBy('createdAt', 'desc');
   return rows.map(rowToSub);
 }
 
-export async function getById(id: number): Promise<Subscription | undefined> {
-  const row = await db('subscriptions').where({ id }).first();
+export async function getById(userId: number, id: number): Promise<Subscription | undefined> {
+  const row = await db('subscriptions').where({ id, userId }).first();
   return row ? rowToSub(row) : undefined;
 }
 
-export async function create(sub: Omit<Subscription, 'id'>): Promise<Subscription> {
-  const [id] = await db('subscriptions').insert(sub);
-  return (await getById(id))!;
+export async function create(userId: number, sub: Omit<Subscription, 'id'>): Promise<Subscription> {
+  const [id] = await db('subscriptions').insert({ ...sub, userId });
+  return (await getById(userId, id))!;
 }
 
-export async function update(id: number, sub: Omit<Subscription, 'id'>): Promise<Subscription | undefined> {
-  const count = await db('subscriptions').where({ id }).update(sub);
+export async function update(
+  userId: number,
+  id: number,
+  sub: Omit<Subscription, 'id'>
+): Promise<Subscription | undefined> {
+  const count = await db('subscriptions').where({ id, userId }).update(sub);
   if (count === 0) return undefined;
-  return getById(id);
+  return getById(userId, id);
 }
 
-export async function remove(id: number): Promise<boolean> {
-  const count = await db('subscriptions').where({ id }).del();
+export async function remove(userId: number, id: number): Promise<boolean> {
+  const count = await db('subscriptions').where({ id, userId }).del();
   return count > 0;
+}
+
+/** All active subscriptions across all users, for the reminder scan. */
+export async function listAllActiveWithUser(): Promise<Array<Subscription & { userId: number; userEmail: string }>> {
+  const rows = await db('subscriptions')
+    .join('users', 'subscriptions.userId', 'users.id')
+    .where('subscriptions.active', true)
+    .select('subscriptions.*', 'users.email as userEmail');
+  return rows.map((r) => ({ ...rowToSub(r), userId: r.userId, userEmail: r.userEmail }));
 }
 
 function rowToSub(row: any): Subscription {

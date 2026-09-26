@@ -1,6 +1,7 @@
 import express, { Application, NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import { router } from './routes/subscriptions';
+import { authRouter } from './routes/auth';
 
 export function createApp(): Application {
   const app = express();
@@ -8,6 +9,7 @@ export function createApp(): Application {
   app.use(express.json());
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  app.use('/api/auth', authRouter);
   app.use('/api', router);
 
   // Centralized error handler so route handlers can throw freely.
